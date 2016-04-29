@@ -1,0 +1,79 @@
+-- http://overpass-turbo.eu/
+-- https://gist.github.com/atlefren/60234fb68d8299136c05
+-- http://www.norkart.no/produkt/datavarehus/
+
+
+-- toalett og kommunekart
+SELECT 
+f.cartodb_id,
+f.the_geom_webmercator,
+f.the_geom,
+count(k.cartodb_id) antall
+FROM kommuner f join toaletter k on (k.the_geom && f.the_geom) group by f.cartodb_id,f.the_geom,f.the_geom_webmercator
+
+-- toaletter og kommuner - bedre
+SELECT 
+f.cartodb_id,
+f.the_geom_webmercator,
+f.the_geom,
+f.navn,
+(select count(t.cartodb_id) from toaletter t where st_intersects(t.the_geom, f.the_geom)) antall 
+FROM kommuner f
+
+-- bryggerier per kommune med left join
+SELECT 
+f.cartodb_id,
+f.the_geom_webmercator,
+f.the_geom,
+f.navn, 
+count(b.cartodb_id) antall_brygg 
+FROM kommuner f left join bryggerier b on (f.the_geom && b.the_geom) group by f.cartodb_id,
+f.the_geom_webmercator,
+f.the_geom,
+f.navn
+
+-- nærmeste toalett til alle bryggerier i norge
+SELECT 
+f.cartodb_id,
+f.the_geom_webmercator,
+f.the_geom,
+f.name,
+(select st_astext(the_geom) from toaletter t order by t.the_geom <-> f.the_geom limit 1) toalett 
+FROM bryggerier f
+
+-- omsetninger innenfor naturvernområde
+
+SELECT 
+f.cartodb_id,
+f.the_geom_webmercator,
+f.the_geom,
+f.omsetningsbeloep,
+f.tekstfelt,
+b.faktaark
+FROM omsetninger f join naturvernomrader b on (f.the_geom && b.the_geom)
+
+
+--omsetninger med bryggeriavstand og naturvernområde og innenfor 10km av bryggeri
+SELECT 
+f.cartodb_id,
+f.the_geom_webmercator,
+f.the_geom,
+f.omsetningsbeloep,
+f.tekstfelt,
+(select faktaark from naturvernomrader n where n.the_geom && f.the_geom) naturvernomrade,
+(select st_distance(t.the_geom,f.the_geom) from bryggerier t order by t.the_geom <-> f.the_geom limit 1) bryggeriavstand_sphere,
+(select st_distance(st_transform(t.the_geom,32633),st_transform(f.the_geom,32633)) from bryggerier t order by t.the_geom <-> f.the_geom limit 1) bryggeriavstand_utm
+FROM omsetninger f 
+where (select st_distance(st_transform(t.the_geom,32633),st_transform(f.the_geom,32633)) from bryggerier t order by t.the_geom <-> f.the_geom limit 1) < 10000
+
+-- antall kulturminner per kommune - lage datasett fra spørring:
+SELECT 
+f.cartodb_id,
+f.the_geom_webmercator,
+f.the_geom,
+f.navn,
+count(1) antall_kulturminner 
+FROM kommuner f left join kulturminner b on (f.the_geom && b.the_geom) group by f.cartodb_id,
+f.the_geom_webmercator,
+f.the_geom,
+f.navn
